@@ -42,8 +42,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'sports',
 ]
-
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000  # or even higher if needed
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',

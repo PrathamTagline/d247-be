@@ -2,7 +2,8 @@ import json
 import hashlib
 from base64 import b64decode
 from Crypto.Cipher import AES
-
+import os
+from base64 import b64encode
 
 def openssl_bytes_to_key(password: bytes, salt: bytes, key_len: int, iv_len: int):
     """
@@ -42,3 +43,33 @@ def decrypt_data(ciphertext: str, password: str):
         return json.loads(text)
     except Exception:
         return text
+
+
+
+def encrypt_data(data, password: str) -> str:
+    """
+    Encrypts data using AES-256-CBC (OpenSSL compatible with Salted__ header).
+    Returns Base64 encoded string.
+    """
+    # Convert to JSON string if dict/object
+    if not isinstance(data, str):
+        data = json.dumps(data)
+
+    data_bytes = data.encode("utf-8")
+
+    # PKCS7 padding
+    pad_len = AES.block_size - (len(data_bytes) % AES.block_size)
+    data_bytes += bytes([pad_len]) * pad_len
+
+    # Generate salt
+    salt = os.urandom(8)
+
+    # Derive key and IV
+    key, iv = openssl_bytes_to_key(password.encode(), salt, 32, 16)
+
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    encrypted = cipher.encrypt(data_bytes)
+
+    # Prepend Salted__ + salt (OpenSSL format)
+    openssl_blob = b"Salted__" + salt + encrypted
+    return b64encode(openssl_blob).decode("utf-8")
