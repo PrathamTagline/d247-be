@@ -77,8 +77,12 @@ from celery.schedules import crontab
 CELERY_BEAT_SCHEDULE = {
     "save-tree-data-every-10-min": {
         "task": "backend.services.tasks.save_tree_data_task",
-        "schedule": 600.0,  # every 10 minutes
+        "schedule": 30.0,  # every 10 minutes
     },
+    "fetch-odds-every-second": {
+        "task": "backend.services.tasks.fetch_odds_for_all_events",
+        "schedule": 1.0,
+}
 }
 
 ROOT_URLCONF = 'backend.urls'
