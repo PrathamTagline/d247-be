@@ -67,10 +67,17 @@ CACHES = {
 CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/1")
 CELERY_RESULT_BACKEND = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/1")
 
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = "Asia/Kolkata"   # <-- set your actual timezone
+
+from celery.schedules import crontab
+
 CELERY_BEAT_SCHEDULE = {
-    "refresh-g-token-every-10-min": {
-        "task": "backend.services.tasks.refresh_g_token",
-        "schedule": 600.0,
+    "save-tree-data-every-10-min": {
+        "task": "backend.services.tasks.save_tree_data_task",
+        "schedule": 600.0,  # every 10 minutes
     },
 }
 
@@ -157,3 +164,4 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+TAGLINE_SECRET_KEY = os.getenv("TAGLINE_SECRET_KEY", "")

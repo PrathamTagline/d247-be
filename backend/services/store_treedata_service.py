@@ -15,8 +15,6 @@ def save_tree_data(tree_data: dict):
 
         # --- Handle T1 ---
         for sport_item in sports_data.get("t1") or []:
-            print("Processing sport (T1):", sport_item.get("name"))
-
             # Check Sport by event_type_id + tree
             sport = Sport.objects.filter(
                 event_type_id=sport_item.get("etid"),
@@ -62,7 +60,6 @@ def save_tree_data(tree_data: dict):
 
         # --- Handle T2 ---
         for sport_item in sports_data.get("t2") or []:
-            print("Processing sport (T2):", sport_item.get("name"))
 
             # Check Sport by event_type_id + tree
             sport = Sport.objects.filter(
@@ -91,7 +88,7 @@ def save_tree_data(tree_data: dict):
                         try:
                             event_date = datetime.strptime(sdatetime, "%m/%d/%Y %I:%M:%S %p")
                         except Exception:
-                            print(f"⚠️ Failed to parse date: {sdatetime}")
+                            pass
 
                     Event.objects.create(
                         event_id=event_item.get("gmid"),

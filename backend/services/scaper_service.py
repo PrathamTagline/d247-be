@@ -38,7 +38,6 @@ def get_odds(sport_id: int, event_id: int, password: str):
 
     res_json = fetch_api(url, method="POST", payload=payload)
     encrypted_data = res_json.get("data")
-    print(encrypted_data)
 
     if not encrypted_data:
         raise Exception("No 'data' field in response")

@@ -12,6 +12,7 @@ from rest_framework.generics import ListAPIView
 from .models import Sport, Competition, Event
 from .serializers import EventOnlySerializer, SportSerializer,CompetitionOnlySerializer
 from rest_framework.response import Response
+from backend.permissions import HasTaglineSecretKey
 
 load_dotenv()
 
@@ -22,8 +23,6 @@ class TreeRecordView(APIView):
             data = get_tree_record(os.getenv("DECRYPTION_KEY"))
             if "error" in data:
                 return Response(data, status=status.HTTP_401_UNAUTHORIZED)
-
-            save_tree_data(data)
 
             return Response({"message": "Tree data saved successfully","data": data},status=status.HTTP_200_OK)
 
@@ -65,7 +64,6 @@ class HighlightHomePrivateView(APIView):
     """
     API to fetch highlight home private data using etid.
     """
-
     def get(self, request, *args, **kwargs):
         try:
             etid = request.query_params.get("etid")
@@ -93,6 +91,7 @@ class HighlightHomePrivateView(APIView):
 class SportListView(ListAPIView):
     queryset = Sport.objects.all()
     serializer_class = SportSerializer
+    permission_classes = [HasTaglineSecretKey]
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
@@ -105,6 +104,8 @@ class SportListView(ListAPIView):
 
 
 class CompetitionListAPIView(APIView):
+    permission_classes = [HasTaglineSecretKey]
+
     def get(self, request, event_type_id=None):
         try:
             # filter Sport by event_type_id instead of id
@@ -129,6 +130,7 @@ class CompetitionListAPIView(APIView):
 
 
 class EventListAPIView(APIView):
+    permission_classes = [HasTaglineSecretKey]
     def get(self, request, event_type_id=None, competition_id=None):
         try:
             # Find sport by event_type_id
