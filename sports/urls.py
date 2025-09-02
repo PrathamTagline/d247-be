@@ -8,4 +8,18 @@ urlpatterns = [
     path("sports-data/", views.SportListView.as_view(), name="sport-list"),
     path("<int:event_type_id>/competitions/", views.CompetitionListAPIView.as_view(), name="competition-list"),
     path("<int:event_type_id>/<int:competition_id>/events/", views.EventListAPIView.as_view(), name="event-list-by-sport-competition"),
+    # New format with market type as URL parameter
+    path('odds/<str:sport_id>/<str:event_id>/<str:market_type>/', 
+         views.GetOddsByEventAndMarketView.as_view(), 
+         name='odds-by-event-and-market-with-type'),
+    
+    # Original format without market type (backward compatibility)
+    path('odds/<str:sport_id>/<str:event_id>/', 
+         views.GetOddsByEventAndMarketView.as_view(), 
+         name='odds-by-event-and-market'),
+    
+    # Original market IDs endpoint (backward compatibility)
+    path('odds/market-ids/', 
+         views.GetOddsByMarketIdsView.as_view(), 
+         name='odds-by-market-ids'),
 ]
