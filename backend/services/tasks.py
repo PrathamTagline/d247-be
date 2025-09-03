@@ -1,8 +1,10 @@
 from celery import shared_task
+from backend.services import store_market_ids
 from backend.services.covert_odds_data import convert_odds_format
 from backend.services.scaper_service import get_odds, get_tree_record
 from backend.services.store_treedata_service import save_tree_data
 from backend.services.redis_service import redis_service
+from django.core.exceptions import ObjectDoesNotExist
 import os
 
 from sports.models import Event
@@ -29,8 +31,8 @@ def fetch_and_store_odds(sport_id: int, event_id: int):
             print(f"[WARNING] No odds data received for sport_id: {sport_id}, event_id: {event_id}")
             return
         
-        # Convert odds to target format
-        converted_odds = convert_odds_format(raw_odds)
+        # Convert odds to target format with sport_id and event_id
+        converted_odds = convert_odds_format(raw_odds, sport_id=sport_id, event_id=event_id)
         
         if not converted_odds:
             print(f"[WARNING] No odds converted for sport_id: {sport_id}, event_id: {event_id}")
@@ -39,15 +41,10 @@ def fetch_and_store_odds(sport_id: int, event_id: int):
         # Store converted odds in Redis as JSON
         key = f"odds:{sport_id}:{event_id}"
         
-        # If you want to store as a single object instead of array, use the first item
-        if len(converted_odds) == 1:
-            # Store single event object
-            redis_service.set_data(key, converted_odds[0], expire=300000)
-        else:
-            # Store as array if multiple events
-            redis_service.set_data(key, converted_odds, expire=300000)
+        # Store the single event object (since convert_odds_format now returns a single object)
+        redis_service.set_data(key, converted_odds, expire=300000)
         
-        print(f"[SUCCESS] Converted and stored {len(converted_odds)} odds events in Redis: {key}")
+        print(f"[SUCCESS] Converted and stored odds for sport_id: {sport_id}, event_id: {event_id} in Redis: {key}")
         
     except Exception as e:
         print(f"[ERROR] Failed to fetch/convert/store odds for sport_id: {sport_id}, event_id: {event_id} - {e}")
@@ -75,3 +72,87 @@ def fetch_odds_for_all_events():
         
     except Exception as e:
         print(f"[ERROR] Failed to queue odds fetch tasks: {e}")
+
+
+# Fixed version of your store_market_ids function in backend/services/__init__.py
+
+from django.db import transaction
+from sports.models import Event, Competition
+
+def store_market_ids(event: Event, data: dict) -> None:
+    """
+    Extract all `mid` values from the given odds payload and
+    store them in the Event model (and update competition count if present).
+    """
+    try:
+        mids = []
+
+        # ✅ markets are in top-level odds_data["data"]
+        for market in data.get("data", []):
+            mid = market.get("mid")
+            if mid:
+                mids.append(mid)
+
+        # Deduplicate
+        mids = list(set(mids))
+        
+        with transaction.atomic():
+            event.market_ids = mids
+            event.market_count = len(mids)
+            event.save(update_fields=["market_ids", "market_count"])
+            
+            # Also update related competition market_count
+            if event.competition_id:
+                Competition.objects.filter(id=event.competition_id).update(
+                    market_count=event.market_count
+                )
+                
+        print(f"✅ Stored {len(mids)} market IDs for event {event.event_name} ({event.event_id})")
+                
+    except Exception as e:
+        print(f"⚠️ Error extracting & saving mids for event {event.id}: {e}")
+        # Add more detailed error logging for debugging
+        import traceback
+        print(f"⚠️ Full traceback: {traceback.format_exc()}")
+
+
+@shared_task
+def save_market_ids_task(event_id: str, sport_id: int, password: str):
+    """
+    Celery task: fetch odds for a given event and store market ids.
+    """
+    try:
+        event = Event.objects.get(event_id=event_id, sport__event_type_id=sport_id)
+    except ObjectDoesNotExist:
+        print(f"⚠️ Event not found: event_id={event_id}, sport_id={sport_id}")
+        return
+
+    try:
+        print(f"🚀 Fetching odds for event {event_id}, sport {sport_id}")
+        
+        # Fetch odds data
+        odds_data = get_odds(sport_id, event_id, password)
+        print(odds_data)
+        
+        if not odds_data:
+            print(f"⚠️ No odds data returned for event {event_id}")
+            return
+            
+        print(f"✅ Got odds data for event {event_id}, processing market IDs...")
+        
+        # Store market IDs
+        store_market_ids(event, odds_data)
+        
+        print(f"✅ Completed processing for event '{event.event_name}' ({event.event_id})")
+        
+    except Exception as e:
+        print(f"⚠️ Error in save_market_ids_task for {event_id}: {e}")
+        import traceback
+        print(f"⚠️ Full error trace:\n{traceback.format_exc()}")
+
+
+@shared_task
+def save_market_ids_for_all_events(password: str):
+    events = Event.objects.all()
+    for event in events:
+        save_market_ids_task.delay(event.event_id, event.sport.event_type_id, password) 

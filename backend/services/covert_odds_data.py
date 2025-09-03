@@ -40,9 +40,22 @@ def get_market_type_name(mname: str, gtype: str = None) -> str:
     return type_mapping.get(market_key, market_key.upper()) 
 
 
-def convert_odds_format(source_data: Dict[str, Any]) -> Dict[str, Any]:
+def get_sport_name_by_id(sport_id: int) -> str:
+    """
+    Get sport name from database using sport_id (event_type_id).
+    """
+    try:
+        from sports.models import Sport
+        sport = Sport.objects.filter(event_type_id=sport_id).first()
+        return sport.name if sport else "Unknown Sport"
+    except Exception as e:
+        return "Unknown Sport"
+
+
+def convert_odds_format(source_data: Dict[str, Any], sport_id: int = None, event_id: int = None) -> Dict[str, Any]:
     """
     Convert odds data from source format to target format with mname separation.
+    Now includes sport_id and fetches sport name from database.
     """
     try:
         data_section = None
@@ -64,7 +77,6 @@ def convert_odds_format(source_data: Dict[str, Any]) -> Dict[str, Any]:
             data_section = source_data
 
         if not data_section or not isinstance(data_section, list):
-            print("No valid data structure found in source data")
             return {}
 
         if not data_section:
@@ -72,13 +84,18 @@ def convert_odds_format(source_data: Dict[str, Any]) -> Dict[str, Any]:
 
         first_event = data_section[0]
 
+        # Get sport name from database if sport_id is provided
+        sport_name = get_sport_name_by_id(sport_id) if sport_id else None
+
         result = {
             "eventid": str(first_event.get("gmid", "")),
             "eventName": first_event.get("ename", ""),
             "updateTime": None,
             "status": "ACTIVE",
             "inplay": first_event.get("iplay", False),
-            "sport": {"name": None},
+            "sport": {"name": sport_name},
+            "sportId": sport_id,  # Store the sport_id
+            "eventId": event_id,  # Store the event_id
             "isLiveStream": None,
             "markets": {}
         }
@@ -169,7 +186,7 @@ def convert_odds_format(source_data: Dict[str, Any]) -> Dict[str, Any]:
                 result["status"] = all_statuses[0]
 
     except (KeyError, TypeError, AttributeError) as e:
-        print(f"Error converting odds data: {e}")
+
         return {}
 
     return result

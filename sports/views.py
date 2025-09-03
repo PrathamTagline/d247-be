@@ -25,7 +25,6 @@ class TreeRecordView(APIView):
             data = get_tree_record(os.getenv("DECRYPTION_KEY"))
             if "error" in data:
                 return Response(data, status=status.HTTP_401_UNAUTHORIZED)
-
             return Response({"message": "Tree data saved successfully","data": data},status=status.HTTP_200_OK)
 
         except Exception as e:
@@ -177,462 +176,127 @@ class EventListAPIView(APIView):
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from typing import Dict, List, Any, Optional
 import logging
+from typing import Dict, Any, List, Optional
+from backend.services.redis_service import redis_service
 
 logger = logging.getLogger(__name__)
 
 class GetOddsByEventAndMarketView(APIView):
     """
-    GET/POST API to get odds data by sport_id/event_id and market type
+    API to get odds data by event_id
     
-    URLs:
-    - /api/odds/{sport_id}/{event_id}/
-    - /api/odds/{sport_id}/{event_id}/{market_type}/
-    
-    Query Parameters (optional for backward compatibility):
-    - market: Market type filter (e.g., "MATCH_ODDS", "BOOKMAKER", "FANCY")
-    
-    POST Body (optional):
-    {
-        "market_ids": ["7190840406478", "7190840406479", ...]
-    }
-    
-    Examples:
-    GET /api/odds/1/834441373/
-    GET /api/odds/1/834441373/MATCH_ODDS/
-    GET /api/odds/1/834441373/BOOKMAKER/
-    POST /api/odds/1/834441373/BOOKMAKER/
-    {
-        "market_ids": ["6264639438562", "743748094417"]
-    }
-    
-    Backward compatibility:
-    GET /api/odds/1/834441373/?market=MATCH_ODDS (still supported)
+    GET  /api/odds/{event_id}/                -> All markets for the event
+    POST /api/odds/{event_id}/Bookmaker/      -> Filtered by market_ids (if provided in body)
     """
-    
-    def get(self, request, sport_id=None, event_id=None, market_type=None):
-        """Handle GET requests"""
-        return self._handle_request(request, sport_id, event_id, market_type)
-    
-    def post(self, request, sport_id=None, event_id=None, market_type=None):
-        """Handle POST requests with market_ids in body"""
-        return self._handle_request(request, sport_id, event_id, market_type)
-    
-    def _handle_request(self, request, sport_id=None, event_id=None, market_type=None):
-        """Common handler for GET and POST requests"""
-        try:
-            # Validate URL parameters
-            validation_error = self._validate_url_params(sport_id, event_id)
-            if validation_error:
-                return validation_error
-            
-            # Determine market type (URL parameter takes precedence over query parameter)
-            final_market_type = self._get_market_type(request, market_type)
-            
-            # Get market_ids from POST body (optional)
-            market_ids = []
-            if request.method == 'POST':
-                market_ids = request.data.get('market_ids', [])
-                # Validate market_ids if provided
-                if market_ids:
-                    validation_error = self._validate_market_ids(market_ids)
-                    if validation_error:
-                        return validation_error
-            
-            # Get odds data
-            odds_data, not_found_markets = self._get_odds_by_event_and_market(
-                event_id, final_market_type, market_ids
-            )
-            
-            # Prepare response
-            response_data = {
-                'success': True,
-                'sport_id': sport_id,
-                'event_id': event_id,
-                'market_type': final_market_type if final_market_type else 'ALL',
-                'data': odds_data,
-                'total_found': len(odds_data),
-                'message': f'Retrieved {len(odds_data)} odds for event {event_id}'
+    permission_classes = [HasTaglineSecretKey]
+
+    # ----------------- GET -----------------
+    def get(self, request, event_id=None):
+        validation_error = self._validate_url_params(event_id)
+        if validation_error:
+            return validation_error
+
+        odds_data = self._get_event_odds_data(event_id)
+        if not odds_data:
+            return Response({
+                'success': False,
+                'error': f'No odds data found for event {event_id}',
+                'data': {}
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(odds_data, status=status.HTTP_200_OK)
+
+    # ----------------- POST -----------------
+    def post(self, request, event_id=None, market_type=None):
+        """
+        POST with market_ids as either:
+        - { "market_ids": ["id1","id2"] }
+        - ["id1","id2"]
+        """
+        validation_error = self._validate_url_params(event_id)
+        if validation_error:
+            return validation_error
+
+        odds_data = self._get_event_odds_data(event_id)
+        if not odds_data:
+            return Response({
+                'success': False,
+                'error': f'No odds data found for event {event_id}',
+                'data': {}
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # ✅ handle both dict & list request bodies
+        if isinstance(request.data, list):
+            market_ids = request.data
+        else:
+            market_ids = request.data.get("market_ids", [])
+
+        # filter by market_ids
+        if isinstance(market_ids, list) and market_ids:
+            filtered_markets = {}
+            for key, markets_list in odds_data.get("markets", {}).items():
+                filtered = [m for m in markets_list if m.get("marketId") in market_ids]
+                if filtered:
+                    filtered_markets[key] = filtered
+            odds_data["markets"] = filtered_markets
+
+        # filter by market_type from URL
+        if market_type:
+            filtered_by_type = {
+                key: markets_list
+                for key, markets_list in odds_data.get("markets", {}).items()
+                if key.lower() == market_type.lower()
+                or any(m.get("market") and m["market"].lower() == market_type.lower() for m in markets_list)
             }
-            
-            # Add market_ids specific info if applicable
-            if market_ids:
-                response_data.update({
-                    'total_requested': len(market_ids),
-                    'not_found_markets': not_found_markets,
-                    'message': f'Retrieved {len(odds_data)} out of {len(market_ids)} requested markets'
-                })
-            
-            logger.info(f"Successfully retrieved odds for event {event_id}, market: {final_market_type}")
-            return Response(response_data, status=status.HTTP_200_OK)
-            
-        except Exception as e:
-            logger.error(f"Error in GetOddsByEventAndMarketView: {e}")
-            return Response({
-                'success': False,
-                'error': f'Internal server error: {str(e)}',
-                'data': [],
-                'sport_id': sport_id,
-                'event_id': event_id
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    def _get_market_type(self, request, url_market_type=None):
-        """
-        Get market type from URL parameter or query parameter (for backward compatibility)
-        URL parameter takes precedence over query parameter
-        """
-        if url_market_type:
-            return url_market_type.upper()
-        
-        # Fallback to query parameter for backward compatibility
-        query_market_type = request.query_params.get('market', '')
-        return query_market_type.upper() if query_market_type else ''
-    
-    def _validate_url_params(self, sport_id, event_id) -> Optional[Response]:
-        """Validate URL parameters"""
-        if not sport_id:
-            return Response({
-                'success': False,
-                'error': 'sport_id is required in URL path',
-                'data': []
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        if not event_id:
+            odds_data["markets"] = filtered_by_type
+
+        return Response(odds_data, status=status.HTTP_200_OK)
+
+
+    # ----------------- Helpers -----------------
+    def _validate_url_params(self, event_id) -> Optional[Response]:
+        if not event_id or not str(event_id).strip():
             return Response({
                 'success': False,
                 'error': 'event_id is required in URL path',
-                'data': []
+                'data': {}
             }, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            int(sport_id)
-            int(event_id)
-        except ValueError:
-            return Response({
-                'success': False,
-                'error': 'sport_id and event_id must be valid integers',
-                'data': []
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
         return None
-    
-    def _validate_market_ids(self, market_ids: List) -> Optional[Response]:
-        """Validate market_ids from POST body"""
-        if not isinstance(market_ids, list):
-            return Response({
-                'success': False,
-                'error': 'market_ids must be a list',
-                'data': []
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        if len(market_ids) > 100:
-            return Response({
-                'success': False,
-                'error': 'Maximum 100 market IDs allowed per request',
-                'data': []
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Check if all items are strings or can be converted to strings
-        try:
-            market_ids[:] = [str(mid).strip() for mid in market_ids if str(mid).strip()]
-        except Exception:
-            return Response({
-                'success': False,
-                'error': 'All market_ids must be valid strings/numbers',
-                'data': []
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        return None
-    
-    def _get_odds_by_event_and_market(self, event_id: str, market_type: str, market_ids: List[str] = None) -> tuple:
-        """
-        Get odds data for the given event_id and market type
-        
-        Args:
-            event_id: Event ID to search for
-            market_type: Market type filter (MATCH_ODDS, BOOKMAKER, FANCY, etc.)
-            market_ids: Optional specific market IDs to filter
-            
-        Returns:
-            tuple: (odds_data, not_found_markets)
-        """
-        odds_data = []
-        not_found_markets = []
-        
-        try:
-            # Get Redis key for the specific event
-            redis_key = f"odds:{event_id}"
-            event_data = redis_service.get_data(redis_key)
-            
-            if not event_data:
-                # Try pattern search if direct key doesn't exist
-                all_odds_keys = redis_service.get_keys_by_pattern("odds:*")
-                for key in all_odds_keys:
-                    data = redis_service.get_data(key)
-                    if data and isinstance(data, dict) and data.get('eventid') == event_id:
-                        event_data = data
-                        break
-            
-            if not event_data:
-                return [], market_ids if market_ids else []
-            
-            # Extract markets based on criteria
-            extracted_markets = self._extract_markets_by_criteria(
-                event_data, market_type, market_ids
-            )
-            
-            if market_ids:
-                # Track which market IDs were found
-                found_market_ids = {market['marketId'] for market in extracted_markets}
-                not_found_markets = [mid for mid in market_ids if mid not in found_market_ids]
-            
-            odds_data.extend(extracted_markets)
-            
-        except Exception as e:
-            logger.error(f"Error getting odds for event {event_id}: {e}")
-            not_found_markets = market_ids if market_ids else []
-        
-        return odds_data, not_found_markets
-    
-    def _extract_markets_by_criteria(self, event_data: Dict, market_type: str, market_ids: List[str] = None) -> List[Dict]:
-        """
-        Extract markets from event data based on criteria
-        
-        Args:
-            event_data: Event data with grouped markets
-            market_type: Market type filter
-            market_ids: Optional specific market IDs
-            
-        Returns:
-            List of matching markets
-        """
-        matching_markets = []
-        
-        try:
-            if not isinstance(event_data, dict) or 'markets' not in event_data:
-                return []
-            
-            markets = event_data['markets']
-            
-            # Determine which market types to search
-            market_types_to_search = []
-            if market_type:
-                # Map market type to internal keys
-                type_mapping = {
-                    'MATCH_ODDS': ['odds'],
-                    'BOOKMAKER': ['bookmaker'],
-                    'FANCY': ['fancy'],
-                    'SESSION': ['session'],
-                    'TOSS': ['toss']
-                }
-                market_types_to_search = type_mapping.get(market_type, [market_type.lower()])
-            else:
-                # Search all market types
-                market_types_to_search = list(markets.keys())
-            
-            # Search through specified market types
-            for market_key in market_types_to_search:
-                if market_key in markets and isinstance(markets[market_key], list):
-                    for market in markets[market_key]:
-                        if isinstance(market, dict):
-                            # Check if specific market IDs are requested
-                            if market_ids:
-                                if market.get('marketId') not in market_ids:
-                                    continue
-                            
-                            # Create complete market object
-                            complete_market = {
-                                'eventid': event_data.get('eventid'),
-                                'eventName': event_data.get('eventName'),
-                                'marketId': market.get('marketId'),
-                                'market': market.get('market'),
-                                'updateTime': event_data.get('updateTime'),
-                                'status': market.get('status'),
-                                'inplay': market.get('inplay'),
-                                'totalMatched': market.get('totalMatched'),
-                                'active': market.get('active'),
-                                'markettype': market.get('markettype'),
-                                'min': market.get('min'),
-                                'max': market.get('max'),
-                                'runners': market.get('runners', []),
-                                'sport': event_data.get('sport'),
-                                'isLiveStream': event_data.get('isLiveStream')
-                            }
-                            matching_markets.append(complete_market)
-            
-        except Exception as e:
-            logger.error(f"Error extracting markets by criteria: {e}")
-        
-        return matching_markets
 
-
-# Keep the original view for backward compatibility
-class GetOddsByMarketIdsView(APIView):
-    """
-    Original POST API to get odds data by market IDs (mids)
-    Maintained for backward compatibility
-    
-    Payload:
-    {
-        "market_ids": ["7190840406478", "7190840406479", ...]
-    }
-    """
-    
-    def post(self, request):
+    def _get_event_odds_data(self, event_id: str) -> Dict:
         try:
-            # Parse and validate request data
-            market_ids = request.data.get('market_ids', [])
-            
-            # Input validation
-            validation_error = self._validate_input(market_ids)
-            if validation_error:
-                return validation_error
-            
-            # Get odds data for each market ID
-            odds_data, not_found_markets = self._get_odds_for_market_ids(market_ids)
-            
-            # Prepare response
-            response_data = {
-                'success': True,
-                'data': odds_data,
-                'total_requested': len(market_ids),
-                'total_found': len(odds_data),
-                'not_found_markets': not_found_markets,
-                'message': f'Retrieved {len(odds_data)} out of {len(market_ids)} requested odds'
-            }
-            
-            return Response(response_data, status=status.HTTP_200_OK)
-            
-        except Exception as e:
-            return Response({
-                'success': False,
-                'error': f'Internal server error: {str(e)}',
-                'data': [],
-                'total_requested': 0,
-                'total_found': 0,
-                'not_found_markets': []
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    def _validate_input(self, market_ids: List) -> Optional[Response]:
-        """Validate the input market_ids"""
-        
-        if not market_ids:
-            return Response({
-                'success': False,
-                'error': 'market_ids is required and cannot be empty',
-                'data': []
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        if not isinstance(market_ids, list):
-            return Response({
-                'success': False,
-                'error': 'market_ids must be a list',
-                'data': []
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        if len(market_ids) > 100:
-            return Response({
-                'success': False,
-                'error': 'Maximum 100 market IDs allowed per request',
-                'data': []
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Check if all items are strings or can be converted to strings
-        try:
-            market_ids[:] = [str(mid).strip() for mid in market_ids if str(mid).strip()]
-        except Exception:
-            return Response({
-                'success': False,
-                'error': 'All market_ids must be valid strings/numbers',
-                'data': []
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        if not market_ids:  # If all were empty after stripping
-            return Response({
-                'success': False,
-                'error': 'market_ids cannot contain only empty values',
-                'data': []
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        return None
-    
-    def _get_odds_for_market_ids(self, market_ids: List[str]) -> tuple:
-        """
-        Get odds data for the given market IDs from grouped market format
-        
-        Returns:
-            tuple: (odds_data, not_found_markets)
-        """
-        odds_data = []
-        not_found_markets = []
-        
-        # Get all Redis keys with odds pattern
-        all_odds_keys = redis_service.get_keys_by_pattern("odds:*")
-        
-        # Process each market ID by checking all Redis keys
-        for market_id in market_ids:
-            found = False
-            
-            for redis_key in all_odds_keys:
-                try:
-                    # Get data from Redis
-                    event_data = redis_service.get_data(redis_key)
-                    
-                    if event_data:
-                        # Extract matching markets from grouped format
-                        matching_markets = self._extract_matching_markets_from_grouped(event_data, market_id)
-                        
-                        if matching_markets:
-                            odds_data.extend(matching_markets)
-                            found = True
-                            break  # Found the market ID, move to next
-                            
-                except Exception as e:
+            pattern = "odds:*:*"
+            for redis_key in redis_service.get_keys_by_pattern(pattern):
+                event_data = redis_service.get_data(redis_key)
+                if not event_data or not isinstance(event_data, dict):
                     continue
-            
-            if not found:
-                not_found_markets.append(market_id)
-        
-        return odds_data, not_found_markets
-    
-    def _extract_matching_markets_from_grouped(self, event_data: Any, market_id: str) -> List[Dict]:
-        """
-        Extract markets matching the market_id from grouped event data
-        """
-        matching_markets = []
-        
-        try:
-            # Handle grouped market format
-            if isinstance(event_data, dict) and 'markets' in event_data:
-                markets = event_data['markets']
-                
-                # Search through all market types (bookmaker, fancy, odds, etc.)
-                for market_type, market_list in markets.items():
-                    if isinstance(market_list, list):
-                        for market in market_list:
-                            if isinstance(market, dict) and market.get('marketId') == market_id:
-                                # Create a complete market object with event info
-                                complete_market = {
-                                    'eventid': event_data.get('eventid'),
-                                    'eventName': event_data.get('eventName'),
-                                    'marketId': market.get('marketId'),
-                                    'market': market.get('market'),
-                                    'updateTime': event_data.get('updateTime'),
-                                    'status': market.get('status'),
-                                    'inplay': market.get('inplay'),
-                                    'totalMatched': market.get('totalMatched'),
-                                    'active': market.get('active'),
-                                    'markettype': market.get('markettype'),
-                                    'min': market.get('min'),
-                                    'max': market.get('max'),
-                                    'runners': market.get('runners', []),
-                                    'sport': event_data.get('sport'),
-                                    'isLiveStream': event_data.get('isLiveStream')
-                                }
-                                matching_markets.append(complete_market)
-            
-            return matching_markets
-            
+
+                if str(event_data.get('eventid', '')) == str(event_id) or str(event_data.get('eventId', '')) == str(event_id):
+                    return self._format_event_response(event_data)
+
+            # fallback: direct event_id search
+            alternative_pattern = f"odds:*:{event_id}"
+            for redis_key in redis_service.get_keys_by_pattern(alternative_pattern):
+                event_data = redis_service.get_data(redis_key)
+                if event_data and isinstance(event_data, dict):
+                    return self._format_event_response(event_data)
+
+            return {}
         except Exception as e:
-            return []
+            logger.error(f"Error getting event odds: {e}")
+            return {}
+
+    def _format_event_response(self, event_data: Dict) -> Dict:
+        return {
+            "eventid": str(event_data.get('eventid', event_data.get('eventId', ''))),
+            "eventName": event_data.get('eventName', ''),
+            "updateTime": event_data.get('updateTime'),
+            "status": event_data.get('status', 'OPEN'),
+            "inplay": event_data.get('inplay', False),
+            "sport": event_data.get('sport', {}),
+            "sportId": event_data.get('sportId'),
+            "eventId": str(event_data.get('eventid', event_data.get('eventId', ''))),
+            "isLiveStream": event_data.get('isLiveStream'),
+            "markets": event_data.get('markets', {})
+        }
