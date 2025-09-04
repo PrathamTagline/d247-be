@@ -15,11 +15,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the entire project to the working directory
 COPY . /code/
 
+# Copy entrypoint
+COPY entrypoint.sh /code/entrypoint.sh
+RUN chmod +x /code/entrypoint.sh
+
 # Expose the port the Django app runs on
-EXPOSE 8000
+EXPOSE 5001
 
 # Set the entrypoint
 ENTRYPOINT ["/bin/sh", "/code/entrypoint.sh"]
 
 # Default command to run the Django development server
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["gunicorn", "backend.wsgi:application", "--bind", "0.0.0.0:5001"]

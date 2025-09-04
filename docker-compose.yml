@@ -17,28 +17,22 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: d247
     volumes:
-      - ./db_data:/var/lib/postgresql/data
+      - d247-db-data:/var/lib/postgresql/data
 
   web:
     build: .
     volumes:
       - .:/code
     ports:
-      - "8000:8000"
+      - "5001:5001"
     env_file:
       - .env
     depends_on:
       - db
-    environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER:  ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_HOST: db   # 👈 matches service name
-      POSTGRES_PORT: 5432
 
   celery:
     build: .
@@ -52,8 +46,8 @@ services:
       - redis
       - db
     environment:
-      - CELERY_BROKER_URL=redis://redis:6380/0
-      - CELERY_RESULT_BACKEND=redis://redis:6380/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
   beat:
     build: .
     container_name: celery_beat
@@ -66,5 +60,8 @@ services:
       - redis
       - db
     environment:
-      - CELERY_BROKER_URL=redis://redis:6380/0
-      - CELERY_RESULT_BACKEND=redis://redis:6380/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+
+volumes:
+  d247-db-data:

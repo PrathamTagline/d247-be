@@ -1,0 +1,22 @@
+[0;1;32m●[0m docker.service - Docker Application Container Engine
+     Loaded: loaded (/lib/systemd/system/docker.service; enabled; vendor preset: enabled)
+     Active: [0;1;32mactive (running)[0m since Thu 2025-09-04 11:06:05 CEST; 11s ago
+TriggeredBy: [0;1;32m●[0m docker.socket
+       Docs: https://docs.docker.com
+   Main PID: 30836 (dockerd)
+      Tasks: 12
+     Memory: 21.5M
+        CPU: 1.807s
+     CGroup: /system.slice/docker.service
+             └─30836 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+
+Sep 04 11:06:04 vmi2773277.contaboserver.net dockerd[30836]: time="2025-09-04T11:06:04.704506241+02:00" level=info msg="[graphdriver] using prior storage driver: overlay2"
+Sep 04 11:06:04 vmi2773277.contaboserver.net dockerd[30836]: time="2025-09-04T11:06:04.709365462+02:00" level=info msg="Loading containers: start."
+Sep 04 11:06:05 vmi2773277.contaboserver.net dockerd[30836]: time="2025-09-04T11:06:05.381894068+02:00" level=warning msg="Error (Unable to complete atomic operation, key modified) deleting object [endpoint_count 9b8b835c20eedc14a018a1ff660d86ef69187f31fc43438c07cc25aa4be43ce0], retrying...."
+Sep 04 11:06:05 vmi2773277.contaboserver.net dockerd[30836]: time="2025-09-04T11:06:05.462585550+02:00" level=info msg="Loading containers: done."
+Sep 04 11:06:05 vmi2773277.contaboserver.net dockerd[30836]: time="2025-09-04T11:06:05.495786621+02:00" level=info msg="Docker daemon" commit=249d679 containerd-snapshotter=false storage-driver=overlay2 version=28.4.0
+Sep 04 11:06:05 vmi2773277.contaboserver.net dockerd[30836]: time="2025-09-04T11:06:05.498632922+02:00" level=info msg="Initializing buildkit"
+Sep 04 11:06:05 vmi2773277.contaboserver.net dockerd[30836]: time="2025-09-04T11:06:05.554052240+02:00" level=info msg="Completed buildkit initialization"
+Sep 04 11:06:05 vmi2773277.contaboserver.net dockerd[30836]: time="2025-09-04T11:06:05.577632645+02:00" level=info msg="Daemon has completed initialization"
+Sep 04 11:06:05 vmi2773277.contaboserver.net dockerd[30836]: time="2025-09-04T11:06:05.580474319+02:00" level=info msg="API listen on /run/docker.sock"
+Sep 04 11:06:05 vmi2773277.contaboserver.net systemd[1]: Started Docker Application Container Engine.
