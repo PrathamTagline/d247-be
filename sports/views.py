@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 
 from backend.services import redis_service
 from backend.services.scaper_service import get_highlight_home_private, get_odds, get_tree_record
-from backend.services.store_treedata_service import save_tree_data
 
 from rest_framework.generics import ListAPIView
 from .models import Sport, Competition, Event

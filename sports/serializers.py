@@ -11,7 +11,7 @@ class SportSerializer(serializers.ModelSerializer):
 class CompetitionOnlySerializer(serializers.ModelSerializer):
     class Meta:
         model = Competition
-        exclude = ("id","created_at", "updated_at", "created_by", "updated_by","sport")
+        exclude = ("id","created_at", "updated_at", "created_by", "updated_by","sport","competition_region","market_count")
         # fields = ["competition_id", "competition_name", "competition_region", "market_count"]
 
 class CompetitionWithSportSerializer(serializers.Serializer):
@@ -21,27 +21,25 @@ class CompetitionWithSportSerializer(serializers.Serializer):
 
 
 class EventOnlySerializer(serializers.ModelSerializer):
-    event_type_id = serializers.IntegerField(source="sport.event_type_id", read_only=True)
-    competition_id = serializers.CharField(source="competition.competition_id", read_only=True)
     exclude = ("id","created_at", "updated_at", "created_by", "updated_by")
     class Meta:
         model = Event
         fields = [
             "event_id",
             "event_name",
-            "event_country_code",
-            "event_timezone",
-            "event_open_date",
-            "common_name",
+            # "event_country_code",
+            # "event_timezone",
+            # "event_open_date",
+            # "common_name",
             "is_disabled",
             "is_fancy",
-            "provider_id",
-            "provider_name",
-            "tv_url",
-            "score_iframe_url",
+            # "provider_id",
+            # "provider_name",
+            # "tv_url",
+            # "score_iframe_url",
             "market_ids",
             "market_count",
-            "selections",
-            "event_type_id",   # from Sport
-            "competition_id",  # from Competition
+            # "selections",
+            # "event_type_id",   # from Sport
+            # "competition_id",  # from Competition
         ]

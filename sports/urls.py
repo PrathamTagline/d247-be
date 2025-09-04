@@ -11,7 +11,5 @@ urlpatterns = [
     path('odds/<str:event_id>/', 
          views.GetOddsByEventAndMarketView.as_view(), 
          name='odds-by-event'),
-    
-    # For specific market type (POST only)
     path('odds/<str:event_id>/<str:market_type>/', views.GetOddsByEventAndMarketView.as_view(), name='get-odds-by-market-type'),
 ]

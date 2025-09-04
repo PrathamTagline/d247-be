@@ -42,7 +42,7 @@ def fetch_and_store_odds(sport_id: int, event_id: int):
         key = f"odds:{sport_id}:{event_id}"
         
         # Store the single event object (since convert_odds_format now returns a single object)
-        redis_service.set_data(key, converted_odds, expire=300000)
+        redis_service.set_data(key, converted_odds, expire=30)
         
         print(f"[SUCCESS] Converted and stored odds for sport_id: {sport_id}, event_id: {event_id} in Redis: {key}")
         
@@ -132,8 +132,8 @@ def save_market_ids_task(event_id: str, sport_id: int, password: str):
         
         # Fetch odds data
         odds_data = get_odds(sport_id, event_id, password)
-        print(odds_data)
         
+
         if not odds_data:
             print(f"⚠️ No odds data returned for event {event_id}")
             return
