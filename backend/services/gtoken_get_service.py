@@ -9,6 +9,7 @@ from selenium.webdriver.support import expected_conditions as EC
 def get_cookie_token():
     # Configure Chrome options
     options = Options()
+    options.binary_location = "/usr/bin/chromium-browser"
     options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
