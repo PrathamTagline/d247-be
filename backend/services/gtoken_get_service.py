@@ -7,26 +7,30 @@ from selenium.webdriver.support import expected_conditions as EC
 
 
 def get_cookie_token():
+    # Configure Chrome options
     options = Options()
-    # options.add_argument("--headless")   # Uncomment for headless mode
+    options.add_argument("--headless=new")         # Run headless (remove if you want to see browser)
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
 
+    # Initialize Chrome (local + server use Google Chrome)
     driver = webdriver.Chrome(options=options)
 
     try:
         driver.get("https://d247.com/")
 
-        # Wait for login button
-        WebDriverWait(driver, 20).until(
+        # Wait until the login button appears
+        login_button = WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.XPATH, "//button[contains(text(), 'Login with demo ID')]"))
         )
-
-        login_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Login with demo ID')]")
         login_button.click()
 
-        time.sleep(5)  # TODO: Replace with smarter wait for post-login element
+        # Wait after login (better: wait for some element instead of sleep)
+        time.sleep(5)
 
+        # Extract g_token cookie
         g_token = None
         for cookie in driver.get_cookies():
             if cookie["name"] == "g_token":
@@ -34,5 +38,6 @@ def get_cookie_token():
                 break
 
         return g_token
+
     finally:
         driver.quit()
