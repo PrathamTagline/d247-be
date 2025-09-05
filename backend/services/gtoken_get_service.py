@@ -1,28 +1,25 @@
+import os
 import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-
+from selenium.webdriver.chrome.service import Service
 
 def get_cookie_token():
     # Configure Chrome options
     options = Options()
+    options.binary_location = os.getenv("CHROMIUM_PATH", "/usr/bin/chromium")
     options.add_argument("--headless=new")
-    options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_argument("--disable-extensions")
-    options.add_argument(
-        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-    )
 
-    # Initialize Chrome
-    driver = webdriver.Chrome(options=options)
+    service = Service(os.getenv("CHROMEDRIVER_PATH", "/usr/bin/chromedriver"))
+    driver = webdriver.Chrome(service=service, options=options)
 
     try:
         driver.get("https://d247.com/")
