@@ -125,15 +125,6 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "Asia/Kolkata"
 
 CELERY_BEAT_SCHEDULE = {
-    "save-tree-data-every-10-min": {
-        "task": "backend.services.tasks.save_tree_data_task",
-        "schedule": 600.0,
-    },
-    "save-market-ids-every-10-min": {
-        "task": "backend.services.tasks.save_market_ids_for_all_events",
-        "schedule": 600.0,
-        "args": (os.getenv("DECRYPTION_KEY"),),
-    },
     "fetch-odds-every-second": {
         "task": "backend.services.tasks.fetch_odds_for_all_events",
         "schedule": 1.0,
