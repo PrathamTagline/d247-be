@@ -12,13 +12,10 @@ REDIS_KEY_G_TOKEN = "G_TOKEN"
 def get_tree_record(password: str):
     url = "https://d247.com/api/front/treedata"
     payload = {"data": {}}
-
     res_json = fetch_api(url, method="POST", payload=payload)
-
     encrypted_data = res_json.get("data")
     if not encrypted_data:
         raise Exception("No 'data' field in response")
-
     return decrypt_data(encrypted_data, password)
 
 
@@ -71,6 +68,7 @@ def get_highlight_home_private(etid: int, password: str):
 def fetch_api(url, method="GET", payload=None, headers=None, timeout=3):
     # 1. Try existing cookie from Redis
     cookie_value = redis_client.get(REDIS_KEY_G_TOKEN)
+    print(cookie_value)
     if cookie_value:
         cookie_value = cookie_value.decode("utf-8")
         resp = make_request(cookie_value, headers, url, method, payload, timeout)
